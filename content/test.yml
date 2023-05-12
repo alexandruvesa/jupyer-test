@@ -1,0 +1,126 @@
+image: "python:3.9-slim"
+
+variables:
+  DOCKER_HOST: tcp://docker:2375/
+  DOCKER_DRIVER: overlay2
+  DOCKER_TLS_CERTDIR: ""
+
+
+services:
+  - docker:dind
+
+stages:
+  - build
+  - deploy
+
+.prepare-version: &prepare-version |
+  export PROJECT_VERSION=$(./archive/scripts/makever.sh)
+  echo "version = ${PROJECT_VERSION}"
+
+.prepare-aws-profiles: &prepare-aws-profiles |
+  apk add --no-cache jq py3-pip python3-dev python3 gcc libffi-dev openssl-dev libc-dev make git curl gettext
+  pip install awscli Jinja2
+  mkdir ~/.aws
+  cat ${AWS_SHARED_CREDENTIALS_FILE} >> ~/.aws/credentials
+  cat ${AWS_CONFIG_FILE} >> ~/.aws/config
+  export AWS_REGION=$(aws configure get region)
+  export DOCKER_REGISTRY_URL="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/archive"
+
+.build-image: &build-image |
+  aws ecr get-login-password | docker login --username AWS --password-stdin ${DOCKER_REGISTRY_URL}
+  echo "Building image..."
+  docker build -t ${DOCKER_REGISTRY_URL}:${PROJECT_VERSION} ./archive
+  echo "Pushing image to container registry..."
+  docker push ${DOCKER_REGISTRY_URL}:${PROJECT_VERSION}
+  docker tag ${DOCKER_REGISTRY_URL}:${PROJECT_VERSION} ${DOCKER_REGISTRY_URL}:latest
+  docker push ${DOCKER_REGISTRY_URL}:latest
+
+.deploy-ecs: &deploy-ecs |
+  echo ${DOCKER_REGISTRY_URL}:${PROJECT_VERSION}
+  cat ${ARCHIVE_ECS_TASK_DEFINITION_TEMPLATE} >> task_definition_template.jinja
+  python3 archive/ops/task_definition.py task_definition_template.jinja
+  NEW_TASK_DEFINITION=$(cat task_definition.json | jq \
+    --arg SERVICE "${CI_AWS_ECS_SERVICE}" \
+    --arg IMAGE "${DOCKER_REGISTRY_URL}:${PROJECT_VERSION}" '.[$SERVICE].containerDefinitions[0].image = $IMAGE | .[$SERVICE]')
+  echo "Registering new task definition for ${CI_AWS_ECS_TASK_DEFINITION}..."
+  aws ecs register-task-definition --cli-input-json "${NEW_TASK_DEFINITION}" >> temp.json
+  REVISION=$(cat temp.json | jq '.taskDefinition.revision')
+  echo "Deploying the new task: revision=${REVISION}"
+  aws ecs update-service  \
+    --cluster "${CI_AWS_ECS_CLUSTER}" \
+    --service "${CI_AWS_ECS_SERVICE}" \
+    --task-definition "${CI_AWS_ECS_TASK_DEFINITION}:${REVISION}"
+
+build-staging:
+  image: docker:20.10.0
+  stage: build
+  only:
+    - main
+  tags:
+    - mediflux
+  script:
+    - *prepare-aws-profiles
+    - *prepare-version
+    - *build-image
+  variables:
+    AWS_PROFILE: staging
+  environment:
+    name: staging
+
+build-prod:
+  image: docker:20.10.0
+  stage: build
+  only:
+    - tags
+    - /^v*$/
+  tags:
+    - mediflux
+  script:
+    - *prepare-aws-profiles
+    - *prepare-version
+    - *build-image
+  variables:
+    AWS_PROFILE: prod
+  environment:
+    name: prod
+
+deploy-staging:
+  image: alpine:latest
+  when: manual
+  stage: deploy
+  only:
+    - main
+  tags:
+    - mediflux
+  script:
+    - *prepare-aws-profiles
+    - *prepare-version
+    - *deploy-ecs
+  variables:
+    AWS_PROFILE: staging
+    CI_AWS_ECS_CLUSTER: cf-staging-ecs-mediflux-cluster
+    CI_AWS_ECS_SERVICE: staging-archive
+    CI_AWS_ECS_TASK_DEFINITION: staging-archive
+  environment:
+    name: staging
+
+deploy-prod:
+  image: alpine:latest
+  when: manual
+  stage: deploy
+  only:
+    - tags
+    - /^v*$/
+  tags:
+    - mediflux
+  script:
+    - *prepare-aws-profiles
+    - *prepare-version
+    - *deploy-ecs
+  variables:
+    AWS_PROFILE: prod
+    CI_AWS_ECS_CLUSTER: cf-prod-ecs-mediflux-cluster
+    CI_AWS_ECS_SERVICE: prod-archive
+    CI_AWS_ECS_TASK_DEFINITION: prod-archive
+  environment:
+    name: prod
