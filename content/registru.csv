@@ -1,4 +1,4 @@
-,M,N,T,ER,PR,ALK,BRAF,EGFR,KRAS,NRAS,HER-2,Ki-67,PD-L1,ICD-10,BODY SITE,TUMOUR DIMENSIONS,HISTOLOGY DIAGNOSIS
-0,M0,N2,pT2N2M0,"{'type': 'POZITIV', 'value': '100'}","{'type': 'POZITIV', 'value': '90'}",not specified,not specified,not specified,not specified,not specified,neamplificat,10,not specified,C504,BREAST,2 cm,CARCINOM MAMAR
-1,M1,N1,pT1c,"{'type': 'POZITIV', 'value': '95'}","{'type': 'POZITIV', 'value': '95'}",not specified,not specified,not specified,not specified,not specified,2+,10%,not specified,85003,BREAST,not specified,CARCINOM MAMAR INVAZIV
-2,METASTASIS CUTANATA,not specified,not specified,"{'type': 'POZITIV', 'value': '80-90'}","{'type': 'POZITIV', 'value': '60-70'}",not specified,not specified,not specified,not specified,not specified,1+,23,not specified,not specified,BREAST,2317 mm,ADENOCARCINOM DE NEOPLASM MAMAR
+,M,N,T,ER,PR,ALK,BRAF,EGFR,KRAS,NRAS,HER-2,Ki-67,PD-L1,ICD-10,BODY SITE,TUMOUR DIMENSIONS,HISTOLOGY DIAGNOSIS,KI-67
+0,M1,N1,pT1c,"{'type': 'POZITIV', 'value': '95'}","{'type': 'POZITIV', 'value': '95'}",not specified,not specified,not specified,not specified,not specified,2+,10%,not specified,85003,BREAST,not specified,CARCINOM MAMAR INVAZIV,
+1,test,N1,T2,"{'type': 'positive', 'value': '90'}","{'type': 'negative', 'value': '23'}",22,11,3,,,44,,,,cancer la pula,18,,11
+2,test,,,"{'type': '', 'value': ''}","{'type': '', 'value': ''}",,,,,,,,,,,,,
